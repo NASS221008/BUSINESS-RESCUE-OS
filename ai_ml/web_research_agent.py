@@ -23,6 +23,10 @@ Returns:
 """
 
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 
 # --------------------------------------------------------------------------
@@ -248,16 +252,20 @@ def search_external_options(
     )
 
     # ----------------------------------------------------------------------
-    # Targeted searches
+    # Targeted searches with clean terms
     # ----------------------------------------------------------------------
 
+    # Extract short keywords from root_cause (first 5 words)
+    clean_cause = " ".join((root_cause or "").split()[:5])
+
     queries = [
-        f"bulk liquidation buyers India {product_name}",
-
         f"wholesale distributor India {product_name}",
-
-        f"excess inventory buyers India {product_name} {root_cause}"
+        f"bulk liquidation buyers India {product_name}",
     ]
+    if clean_cause:
+        queries.append(f"excess inventory buyers India {product_name} {clean_cause}")
+    else:
+        queries.append(f"excess inventory liquidation India {product_name}")
 
     all_results = []
 
@@ -298,6 +306,29 @@ def search_external_options(
                 duckduckgo_results
             )
 
+    # Fallback options if web search is sparse or offline
+    curated_fallbacks = [
+        {
+            "name": "Excess2sell B2B Liquidation Marketplace",
+            "reason": f"Tech-enabled B2B marketplace for liquidation of excess/overstock {product_name} inventory in India.",
+            "source_url": "https://www.excess2sell.com/"
+        },
+        {
+            "name": "Racklots Surplus Inventory Exchange",
+            "reason": f"Direct B2B buyers for bulk excess inventory and liquidation lots across Indian commercial hubs.",
+            "source_url": "https://www.racklots.com/"
+        },
+        {
+            "name": "IndiaMART Wholesale & Liquidation Directory",
+            "reason": f"Verified wholesale suppliers and bulk stock clearance buyers for {product_name} in India.",
+            "source_url": "https://www.indiamart.com/"
+        }
+    ]
+
+    # If live search returned few results, supplement with curated B2B leads
+    if len(all_results) < 2:
+        all_results.extend(curated_fallbacks)
+
     # ----------------------------------------------------------------------
     # Clean and de-duplicate
     # ----------------------------------------------------------------------
@@ -311,6 +342,7 @@ def search_external_options(
     # ----------------------------------------------------------------------
 
     return deduped_results[:limit]
+
 
 
 # --------------------------------------------------------------------------

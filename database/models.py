@@ -52,5 +52,7 @@ class RecoveryReport(Base):
     remaining_risk = Column(Float)
     plan_json = Column(Text)
     approved = Column(Integer, default=0)  # main.py sets this to 1 on approval
+    full_report_json = Column(Text, nullable=True)
 
     problem = relationship("Problem", back_populates="reports")
+

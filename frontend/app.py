@@ -6,14 +6,13 @@ identity: typography, a gradient hero header, custom stat cards,
 category icons, risk-level badges, and a sidebar for filters so the
 main area stays focused on the problem list.
 """
-
+import os
 import streamlit as st
 import requests
 
 st.set_page_config(page_title="Business Rescue OS", page_icon="🚑", layout="wide")
 
-BASE_URL = "http://localhost:8000"
-REQUEST_TIMEOUT = 10
+BASE_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
 ANALYZE_TIMEOUT = 120
 NOISY_DOMAINS = ["quora.com", "facebook.com", "linkedin.com", "reddit.com", "twitter.com", "x.com"]
 
@@ -116,8 +115,32 @@ st.markdown(
     .option-card .option-name { font-weight: 700; color: #F9FAFB; font-size: 0.92rem; }
     .option-card .option-reason { color: #9CA3AF; font-size: 0.82rem; margin-top: 4px; }
     .option-card a { color: #F87171; font-size: 0.82rem; font-weight: 600; }
+
+    /* Agent Insight Cards */
+    .agent-card {
+        background: #0d1522;
+        border: 1px solid #1e293b;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 8px;
+        height: 100%;
+    }
+    .agent-card-title {
+        font-weight: 700;
+        font-size: 0.82rem;
+        color: #93C5FD;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .agent-card-body {
+        font-size: 0.84rem;
+        color: #E2E8F0;
+        line-height: 1.4;
+    }
     </style>
     """,
+
     unsafe_allow_html=True,
 )
 
@@ -155,11 +178,21 @@ def fetch_problems():
     try:
         resp = requests.get(f"{BASE_URL}/api/problems", timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
-        st.session_state.problems = resp.json()
+        problems = resp.json()
+        st.session_state.problems = problems
         st.session_state.fetch_error = None
+        for p in problems:
+            pid = p.get("id")
+            report = p.get("report")
+            if report:
+                if pid not in st.session_state.recovery_plans:
+                    st.session_state.recovery_plans[pid] = report
+                if report.get("approved") or p.get("status") == "approved":
+                    st.session_state.approved[pid] = True
     except requests.exceptions.RequestException as e:
         st.session_state.problems = None
         st.session_state.fetch_error = str(e)
+
 
 
 def analyze_problem(problem_id):
@@ -409,6 +442,55 @@ for problem in filtered:
                     st.metric("Expected Recovery", format_money(recovery_plan.get("expected_recovery")))
                 with m3:
                     st.metric("Remaining Risk", format_money(recovery_plan.get("remaining_risk")))
+
+                # Multi-Agent Intelligence breakdown
+                sales_info = result.get("sales_assessment", {})
+                inventory_info = result.get("inventory_assessment", {})
+                finance_info = result.get("finance_assessment", {})
+
+                if sales_info or inventory_info or finance_info:
+                    st.markdown("**🤖 AI Agent Intelligence Breakdown**")
+                    ag1, ag2, ag3 = st.columns(3)
+                    with ag1:
+                        sell_pct = sales_info.get("sell_through_estimate_pct", "—")
+                        sold_units = sales_info.get("estimated_units_sold", "—")
+                        reason = sales_info.get("sales_reason", "No sales notes available.")
+                        st.markdown(f"""
+                        <div class="agent-card">
+                            <div class="agent-card-title">📈 Sales Agent</div>
+                            <div class="agent-card-body">
+                                <b>Est. Sell-Through:</b> {sell_pct}% ({sold_units} units)<br>
+                                <span style="color:#94A3B8;">{reason}</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    with ag2:
+                        tf_rec = "Yes" if inventory_info.get("transfer_recommended") else "No"
+                        tf_cand = inventory_info.get("transfer_candidate") or "N/A"
+                        inv_notes = inventory_info.get("inventory_notes") or inventory_info.get("inventory_issue") or "No transfer notes."
+                        st.markdown(f"""
+                        <div class="agent-card">
+                            <div class="agent-card-title">📦 Inventory Agent</div>
+                            <div class="agent-card-body">
+                                <b>Transfer Recommended:</b> {tf_rec}<br>
+                                <b>Target:</b> {tf_cand}<br>
+                                <span style="color:#94A3B8;">{inv_notes[:140]}</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    with ag3:
+                        risk_lvl = finance_info.get("risk_level", "Medium")
+                        fin_notes = finance_info.get("finance_notes", "Recovery calculated against units at risk.")
+                        st.markdown(f"""
+                        <div class="agent-card">
+                            <div class="agent-card-title">💰 Finance Agent</div>
+                            <div class="agent-card-body">
+                                <b>Assessed Risk:</b> {risk_lvl}<br>
+                                <span style="color:#94A3B8;">{fin_notes[:160]}</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
 
                 external_options = result.get("external_options", [])
                 clean_options = [o for o in external_options if not is_noisy(o.get("source_url", ""))]

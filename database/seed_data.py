@@ -10,17 +10,24 @@ a genuinely varied set of real-world cases.
 Run:  python -m database.seed_data
 """
 
-from database.db import init_db, SessionLocal
-from database.models import Product, Problem
+import sys
+from database.db import init_db, SessionLocal, engine
+from database.models import Base, Product, Problem, RecoveryReport
 
 
-def seed():
+def seed(reset: bool = False):
+    if reset:
+        print("Resetting database...")
+        Base.metadata.drop_all(bind=engine)
+
     init_db()
     db = SessionLocal()
 
-    if db.query(Product).first():
-        print("DB already seeded.")
+    if not reset and db.query(Product).first():
+        print("DB already seeded. Use --reset to re-seed from scratch.")
+        db.close()
         return
+
 
     # Each entry: product details + the at-risk problem tied to it.
     # value_at_risk = units_at_risk * unit_price (kept consistent).
@@ -183,4 +190,6 @@ def seed():
 
 
 if __name__ == "__main__":
-    seed()
+    reset_flag = "--reset" in sys.argv
+    seed(reset=reset_flag)
+
