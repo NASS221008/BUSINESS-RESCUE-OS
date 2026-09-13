@@ -123,41 +123,67 @@ can work in parallel without blocking each other.
 business_rescue_os/
 ├── README.md                  ← this file
 ├── backend/            (Adithya)
-│   ├── main.py
+│   ├── main.py        ← FastAPI orchestrator & SPA static server
 │   └── requirements.txt
 ├── ai_ml/              (Nidhi)
-│   ├── agents.py
-│   ├── web_research_agent.py
+│   ├── agents.py      ← Groq multi-agent swarm (Sales, Inv, Fin, Strategy)
+│   ├── web_research_agent.py ← Live DuckDuckGo web search
 │   └── requirements.txt
 ├── database/           (Shubh)
-│   ├── models.py
-│   ├── db.py
-│   └── seed_data.py
-└── frontend/           (Shreesh)
-    ├── app.py          ← Streamlit dashboard (pure Python)
+│   ├── models.py      ← SQLAlchemy ORM models
+│   ├── db.py          ← SQLite session
+│   └── seed_data.py   ← 20 real-world retail crisis scenarios
+├── frontend-ui/        (Flagship React Hackathon Application)
+│   ├── src/
+│   │   ├── components/← Header, MetricCards, AgentVisualizer, ProblemCard, WarRoom, Simulator, PitchDeck, ExecutiveMemo
+│   │   ├── data/      ← Mock presets & demo scenarios
+│   │   ├── types/     ← TypeScript schemas
+│   │   └── App.tsx    ← Master command center
+│   ├── package.json
+│   └── dist/          ← Production bundle mounted directly in FastAPI
+└── frontend/           (Legacy Streamlit fallback)
+    ├── app.py         ← Streamlit dashboard
     └── requirements.txt
 ```
 
-## 7. How to run (whole team, end to end — 100% Python, two terminals)
+---
+
+## 7. How to Run (Single Command Hackathon Setup)
+
+### Option A: The Flagship Experience (Recommended for Hackathons)
+Run the backend, which **automatically hosts the React Executive Command Center** at `http://localhost:8000`:
 
 ```bash
-# 1. Get a free Groq API key: https://console.groq.com/keys
-export GROQ_API_KEY="your_key_here"
+# 1. Set your Groq key
+export GROQ_API_KEY="your_groq_key_here"   # Linux/macOS
+$env:GROQ_API_KEY="your_groq_key_here"     # Windows PowerShell
 
-# 2. Install deps
-pip install -r backend/requirements.txt
-pip install -r ai_ml/requirements.txt
-pip install -r frontend/requirements.txt
+# 2. Run the server (Hosts REST API + React Command Center)
+python -m uvicorn backend.main:app --reload --port 8000
+```
+👉 Open **`http://localhost:8000`** in your browser to view the **Business Rescue OS Command Center**.
 
-# 3. Seed the database
-python -m database.seed_data
+---
 
-# 4. Terminal 1 — run the backend (loads the AI/ML agents)
-uvicorn backend.main:app --reload --port 8000
+### Option B: Frontend Development (Vite Hot-Reload)
+To develop or customize React components with instant hot-reloading:
 
-# 5. Terminal 2 — run the dashboard
+```bash
+cd frontend-ui
+npm.cmd install        # or npm install
+npm.cmd run dev        # opens http://localhost:5173
+```
+
+---
+
+### Option C: Legacy Streamlit Fallback
+If team members prefer running Streamlit:
+
+```bash
+# Terminal 1:
+python -m uvicorn backend.main:app --reload --port 8000
+
+# Terminal 2:
 streamlit run frontend/app.py
 ```
 
-Streamlit opens automatically in your browser (usually http://localhost:8501)
-and talks to the FastAPI backend on port 8000.

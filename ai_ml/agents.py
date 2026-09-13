@@ -21,17 +21,7 @@ the backend should call.
 """
 
 import os
-import sys
 import json
-from dotenv import load_dotenv
-
-load_dotenv()
-
-if sys.platform == "win32":
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
 
 from database.db import SessionLocal
 from database.models import Problem, Product
@@ -42,8 +32,7 @@ from ai_ml.web_research_agent import search_external_options
 # Configuration
 # --------------------------------------------------------------------------
 
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
-
+GROQ_MODEL = "openai/gpt-oss-120b"
 
 _client = None
 
@@ -1195,15 +1184,12 @@ def _validate_final_report(report: dict) -> bool:
 # Full Pipeline
 # --------------------------------------------------------------------------
 
-def run_pipeline(problem_id_or_dict, product_dict: dict = None) -> dict:
+def run_pipeline(problem_id: int) -> dict:
     """
     Single public entry point for the backend.
 
-    Accepts either:
-      - problem_id: int (loads Problem & Product from SQLite DB)
-      - problem_dict: dict, product_dict: dict (runs directly from dictionaries)
+    Loads the Problem from the database and runs:
 
-    Runs:
         Problem
           ↓
         Sales Agent
@@ -1219,61 +1205,61 @@ def run_pipeline(problem_id_or_dict, product_dict: dict = None) -> dict:
         Final JSON validation
           ↓
         Return final report
+
+    Raises:
+        RuntimeError:
+            If the pipeline fails.
+
+        ValueError:
+            If the requested problem does not exist or the final
+            JSON contract is invalid.
     """
 
     db = SessionLocal()
-    problem = None
 
     try:
-        if isinstance(problem_id_or_dict, int):
-            problem_id = problem_id_or_dict
-            # --------------------------------------------------------------
-            # Load Problem from DB
-            # --------------------------------------------------------------
-            problem = (
-                db.query(Problem)
-                .filter(
-                    Problem.id == problem_id
-                )
-                .first()
+
+        # --------------------------------------------------------------
+        # Load Problem
+        # --------------------------------------------------------------
+
+        problem = (
+            db.query(Problem)
+            .filter(
+                Problem.id == problem_id
+            )
+            .first()
+        )
+
+        if problem is None:
+
+            raise ValueError(
+                f"No problem found with id={problem_id}"
             )
 
-            if problem is None:
-                raise ValueError(
-                    f"No problem found with id={problem_id}"
-                )
+        # --------------------------------------------------------------
+        # Load Product
+        # --------------------------------------------------------------
 
-            product = (
-                db.query(Product)
-                .filter(
-                    Product.id == problem.product_id
-                )
-                .first()
+        product = (
+            db.query(Product)
+            .filter(
+                Product.id == problem.product_id
             )
+            .first()
+        )
 
-            problem_data = {
-                "product": (
-                    product.name
-                    if product
-                    else "Unknown product"
-                ),
-                "units_at_risk": problem.units_at_risk,
-                "value_at_risk": problem.value_at_risk,
-                "root_cause": problem.root_cause
-            }
-        elif isinstance(problem_id_or_dict, dict):
-            p_dict = problem_id_or_dict
-            prod = product_dict or {}
-            prod_name = prod.get("name") or p_dict.get("product", "Unknown product")
-            problem_data = {
-                "product": prod_name,
-                "units_at_risk": int(p_dict.get("units_at_risk", 0)),
-                "value_at_risk": float(p_dict.get("value_at_risk", 0.0)),
-                "root_cause": p_dict.get("root_cause", "")
-            }
-        else:
-            raise ValueError(f"Invalid argument to run_pipeline: {type(problem_id_or_dict)}")
-
+        # Exact values from the database.
+        problem_data = {
+            "product": (
+                product.name
+                if product
+                else "Unknown product"
+            ),
+            "units_at_risk": problem.units_at_risk,
+            "value_at_risk": problem.value_at_risk,
+            "root_cause": problem.root_cause
+        }
 
         # --------------------------------------------------------------
         # 1. Sales Agent
@@ -1374,12 +1360,12 @@ def run_pipeline(problem_id_or_dict, product_dict: dict = None) -> dict:
         )
 
         # --------------------------------------------------------------
-        # Mark problem as analyzed if DB model is present
+        # Mark problem as analyzed
         # --------------------------------------------------------------
 
-        if problem is not None:
-            problem.status = "analyzed"
-            db.commit()
+        problem.status = "analyzed"
+
+        db.commit()
 
         return final_report
 
@@ -1409,13 +1395,14 @@ def run_pipeline(problem_id_or_dict, product_dict: dict = None) -> dict:
         ):
 
             raise RuntimeError(
-                f"Final JSON validation failed: {e}"
+                f"Final JSON validation failed for "
+                f"problem_id={problem_id}: {e}"
             ) from e
 
         raise RuntimeError(
-            f"Business Rescue pipeline failed: {e}"
+            f"Business Rescue pipeline failed for "
+            f"problem_id={problem_id}: {e}"
         ) from e
-
 
     finally:
 

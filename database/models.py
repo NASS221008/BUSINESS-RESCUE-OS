@@ -17,6 +17,7 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(String, index=True, nullable=False)  # Supabase auth user id (uuid, stored as text)
     name = Column(String, nullable=False)
     category = Column(String)
     branch = Column(String)
@@ -52,7 +53,5 @@ class RecoveryReport(Base):
     remaining_risk = Column(Float)
     plan_json = Column(Text)
     approved = Column(Integer, default=0)  # main.py sets this to 1 on approval
-    full_report_json = Column(Text, nullable=True)
 
     problem = relationship("Problem", back_populates="reports")
-
