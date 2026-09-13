@@ -1,0 +1,4 @@
+groq>=0.9
+ddgs>=5.0
+sqlalchemy>=2.0
+tavily-python>=0.3
